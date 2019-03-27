@@ -88,51 +88,105 @@ def softmax(z, axis=0):
     return s
 
 
-def lnn_likelihood(W, b, X, y, out_vals):
+def lnn_likelihood(W, b, x, y):
     """
-    Calculates log likelihood of linear neural network for input data X and target values y
-    :param W: connectivity matrix d x out
-    :param b: bias vector (must be 1d)
-    :param X: input data matrix. This should be d x m
-    :param y: input target values. This should be m x 1
-    :param out_vals: list of distinct output values. This should be out x 1
-    :return: dW: derivatives of weight matrix
-    :return: db: derivatives of bias vector
+    Calculates log likelihood of linear neural network for input data x and target values y where k is num outputs,
+    d is num features and m is num samples
+    :param W: connectivity matrix k x d
+    :param b: bias vector (must be k x 1)
+    :param x: input data matrix. This should be d x m
+    :param y: input target value matrix. This should be k x m
+    :return: dW: change in values of weight matrix according to gradient descent of negative of log likelihood
+    :return: db: change in values of bias vector according to gradient descent of negative of log likelihood
     """
 
-    m = len(y)  # num_samples
-    o = len(out_vals)  # num_outputs
+    m = y.shape[1]  # num_samples
 
     b = np.tile(b, (m, 1)).transpose()
-    z = W.transpose() @ X + b
+    z = W @ x + b
 
-    s_z = softmax(z, axis=0)
+    s = softmax(z, axis=0)
+    y_s = y - s
+    db = np.sum(y_s, axis=1)
+    dW = y_s @ x.transpose()
 
-    db = np.zeros(o)
-    dW = np.zeros(W.shape)
-    for j in range(o):
-        m_j = np.sum(np.isin(y, out_vals))
+    return dW, db
 
-        db[j] =  m_j + np.sum(s_z[j, :])
-        dW[:, j] =
 
-def lnn_predict(W, b, X, y):
+def lnn_predict(W, b, x):
     """
-    predicts values of linear neural network for test data X
+    Predicts values of linear neural network for test data x where k is num outputs,
+    d is num features and m is num samples
     :param W: connectivity matrix
-    :param b: bias vector (must be 1d)
-    :param X: input data matrix. This should be d x m
-    :return: y_hat: predicted values
+    :param b: bias vector. Must be k x 1
+    :param x: input data matrix. This should be d x m
+    :return: p: probability that the jth (in 1,...,m) data point falls in the ith (in 1,...,k) class. This will be k x m
     """
 
-    num_samples = X.shape[1]
-    b = np.tile(b, (num_samples, 1)).tranpose()
+    m = x.shape[1]
+    b = np.tile(b, (m, 1)).transpose()
 
-    z = W.transpose() @ X + b
+    p = softmax(W @ x + b, axis=0)
 
-    y_hat = softmax(z, axis=0)
+    return p
 
-    return y_hat
+class linear_nn:
+
+    def __init__(self, W, b):
+        self.W = W
+        self.b = b
+
+    def train(self, x, y, batch_size, num_epochs):
+        """
+        Takes in n samples of training data with d features and trains network with k output classes. If batch_size
+        doesn't divide n then the last batch contains the remaining samples.
+        :param x: training data. Should be d x n array
+        :param y: target values. Should be 1 x n of integers array
+        :param batch_size: integer value
+        :param num_epochs: integer value
+        :return: params: tuple containing trained W and b
+        """
+
+        n = len(y)
+        k = np.max(y)
+        y_mat = np.zeros((k, n), dtype=int)
+        for i in range(n):
+            y_mat[y[i], i] = 1                                                              # Create y_mat
+
+        num_batches = int(n / batch_size) + 1
+
+        for _ in range(num_epochs):                                                         # Loop through epochs
+            index = np.arange(0, n - 1, 1)
+
+            for _ in range(num_batches):                                                    # Loop through batches
+                if len(index) > len(batch_size):
+                    samples = np.random.choice(index)
+                    index = index(np.isin(index, samples, assume_unique=True, invert=True))
+                else:
+                    samples = index
+
+                y_batch = y_mat[:, samples]
+                x_batch = x[:, samples]
+
+                dW, db = lnn_likelihood(self.W, self.b, x_batch, y_batch)
+                self.W = self.W + dW
+                self.b = self.b + db
+
+        params = (self.W, self.b)
+
+        return params
+
+    def test(self, x):
+        """
+        Evaluates neural network on test data with d features and n samples
+        :param x: test data. Should be d x n
+        :return: p, class probabilities. k x n array
+        :return: y_hat, predictions. k x n array
+        """
+
+        p = lnn_predict(self.W, self.b, x)
+        y_hat = np.amax(p, axis=0, keepdims=True)
+
 
 
 
