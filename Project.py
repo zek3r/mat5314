@@ -137,6 +137,14 @@ class linear_nn:
         self.W = W
         self.b = b
 
+    def params(self):
+        """
+        Returns parameters
+        :return: W
+        :return: b
+        """
+        return self.W, self.b
+
     def train(self, x, y, batch_size, num_epochs):
         """
         Takes in n samples of training data with d features and trains network with k output classes. If batch_size
@@ -222,6 +230,10 @@ def lnn_likelihood(W, b, x, y):
 
 if __name__ == "__main__":
 
+    save_plots = False                                      # Choose whether or not to save plots
+    test_gradient = False                                   # Choose whether or not to test gradient
+    plot_in = Path.cwd() / 'plots'
+
     data = load_mnist('mnist_all.mat')                      # Load
 
     to_plot = []
@@ -232,6 +244,7 @@ if __name__ == "__main__":
                 to_plot.append(value[0].reshape(28, 28))
 
     fig = plt.figure(1)                                     # Plot numbers
+    fig.suptitle('Example Data Points')
     gs0 = gs.GridSpec(2, 5)
     index = [(x, y) for x in range(2) for y in range(5)]
 
@@ -240,11 +253,13 @@ if __name__ == "__main__":
         ax.imshow(to_plot[i], cmap='Greys')
         ax.axis('off')
 
-    working_dir = Path.cwd()
-    fig.savefig(working_dir, format('pdf'))
+    if save_plots:
+        fig.savefig(plot_in, format('pdf'))
 
     d = 28**2                                               # Initialize parameters
     k = 10
+    epochs = 60
+    n_batch = 16
     W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k, spec_radius=1)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
 
@@ -257,41 +272,78 @@ if __name__ == "__main__":
         y_train.extend(data['train' + str(i)].shape[0])
     y_train = np.asarray(y_train)
 
-    gt_m = 16                                               # Get data for gradient test
-    gt_index = np.random.choice(y_train, size=gt_m, replace=False)
-    y_gt = y_train[gt_index]
-    x_gt = x_train[:, gt_index]
-    n_gt = len(y_gt)
-    k_gt = np.max(y_gt)
-    y_mat_gt = np.zeros((k_gt, n_gt), dtype=int)
-    for i in range(n):
-        y_mat_gt[y_gt[i], i] = 1
+    if test_gradient:
 
-    w1_test = (1, 1)                                        # Numerically compute partial derivatives for 3 params
-    w2_test = (3, 7)
-    b_test = 4
-    h_gt = 0.0001
+        gt_m = 16                                           # Get data for gradient test
+        gt_index = np.random.choice(y_train, size=gt_m, replace=False)
+        y_gt = y_train[gt_index]
+        x_gt = x_train[:, gt_index]
+        n_gt = len(y_gt)
+        k_gt = np.max(y_gt)
+        y_mat_gt = np.zeros((k_gt, n_gt), dtype=int)
+        for i in range(n):
+            y_mat_gt[y_gt[i], i] = 1
 
-    W1 = np.copy(W)
-    W2 = np.copy(W)
-    b1 = np.copy(b)
-    W1[w1_test] = W1[w1_test] + h_gt
-    W2[w2_test] = W2[w2_test] + h_gt
-    b1[b_test] = b1[b_test] + h_gt
+        dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)     # Analytically compute partial derivatives
+        dW1a = dW_gt[w1_test]
+        dW2a = dW_gt[w2_test]
+        db1a = db_gt[b_test]
 
-    f_a = lnn_likelihood(W, b, x_gt, y_gt)
-    f_ah_w1 = lnn_likelihood(W1, b, x_gt, y_gt)
-    f_ah_w2 = lnn_likelihood(W2, b, x_gt, y_gt)
-    f_ah_b1 = lnn_likelihood(W, b1, x_gt, y_gt)
+        w1_test = (1, 1)                                    # Numerically compute partial derivatives for 3 params
+        w2_test = (3, 7)
+        b_test = 4
+        h_gt = np.array([0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001])
+        lh = len(h_gt)
+        diff_W1 = np.zeros(lh)
+        diff_W2 = np.zeros(lh)
+        diff_b = np.zeros(lh)
+        for ix, h in enumerate(h_gt):
+            W1 = np.copy(W)
+            W2 = np.copy(W)
+            b1 = np.copy(b)
+            W1[w1_test] = W1[w1_test] + h
+            W2[w2_test] = W2[w2_test] + h
+            b1[b_test] = b1[b_test] + h
 
-    dW1 = (f_ah_w1 - f_a)/h_gt
-    dW2 = (f_ah_w2 - f_a) / h_gt
-    db1 = (f_ah_b1 - f_a) / h_gt
+            f_a = lnn_likelihood(W, b, x_gt, y_gt)
+            f_ah_w1 = lnn_likelihood(W1, b, x_gt, y_gt)
+            f_ah_w2 = lnn_likelihood(W2, b, x_gt, y_gt)
+            f_ah_b1 = lnn_likelihood(W, b1, x_gt, y_gt)
 
-    dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)        # Analytically compute partial derivatives
-    dW1a = dW_gt[w1_test]
-    dW2a = dW_gt[w2_test]
-    db1a = db_gt[b_test]
+            dW1 = (f_ah_w1 - f_a) / h
+            dW2 = (f_ah_w2 - f_a) / h
+            db1 = (f_ah_b1 - f_a) / h
 
+            diff_W1[ix] = np.abs(dW1a - dW1)
+            diff_W2[ix] = np.abs(dW2a - dW2)
+            diff_b[ix] = np.abs(db1a - db1)
 
+        fig2 = plt.figure(2)                                # Plot results of gradient test
+        fig2.suptitle('Difference Between Analytical and Numerical Partial Derivatives')
+        plt.plot(diff_W1, color='blue')
+        plt.plot(diff_W2, color='red')
+        plt.plot(diff_b, color='green')
 
+        if save_plots:
+            fig2.savefig(plot_in, format('pdf'))
+
+    lnn = linear_nn(W, b)                                   # Create neural network
+
+    x_test = data['test0']                                  # Initialize testing variables
+    for i in range(1, 10):
+        x_test = np.concatenate((x_test, data['test' + str(i)]), axis=0)
+    x_test = x_test.transpose()
+    y_test = []
+    for i in range(10):
+        y_test.extend(data['test' + str(i)].shape[0])
+    y_test = np.asarray(y_test)
+
+    error = []                                              # Train network and plot error at each epoch
+    for ix in range(epochs):
+        _ = lnn.train(x_train, y_train, batch_size=n_batch, num_epochs=1)
+        y_hat = lnn.test(x_test)
+        y_hat.flatten()
+
+        error.extend(np.abs(y_hat - y_test))
+
+    W, b = lnn.params()
