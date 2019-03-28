@@ -88,10 +88,10 @@ def softmax(z, axis=0):
     return s
 
 
-def lnn_likelihood(W, b, x, y):
+def lnn_update(W, b, x, y):
     """
-    Calculates log likelihood of linear neural network for input data x and target values y where k is num outputs,
-    d is num features and m is num samples
+    Calculates parameter updates for linear neural network for input data x and target values y where k is num outputs,
+    d is num features and m is num samples using gradient descent of log likelihood
     :param W: connectivity matrix k x d
     :param b: bias vector (must be k x 1)
     :param x: input data matrix. This should be d x m
@@ -130,6 +130,7 @@ def lnn_predict(W, b, x):
 
     return p
 
+
 class linear_nn:
 
     def __init__(self, W, b):
@@ -156,11 +157,11 @@ class linear_nn:
         num_batches = int(n / batch_size) + 1
 
         for _ in range(num_epochs):                                                         # Loop through epochs
-            index = np.arange(0, n - 1, 1)
+            index = np.arange(0, n, 1)
 
             for _ in range(num_batches):                                                    # Loop through batches
                 if len(index) > len(batch_size):
-                    samples = np.random.choice(index)
+                    samples = np.random.choice(index, size=batch_size, replace=False)
                     index = index(np.isin(index, samples, assume_unique=True, invert=True))
                 else:
                     samples = index
@@ -168,7 +169,7 @@ class linear_nn:
                 y_batch = y_mat[:, samples]
                 x_batch = x[:, samples]
 
-                dW, db = lnn_likelihood(self.W, self.b, x_batch, y_batch)
+                dW, db = lnn_update(self.W, self.b, x_batch, y_batch)
                 self.W = self.W + dW
                 self.b = self.b + db
 
@@ -187,9 +188,34 @@ class linear_nn:
         p = lnn_predict(self.W, self.b, x)
         y_hat = np.amax(p, axis=0, keepdims=True)
 
+        return y_hat, p
 
 
+def lnn_likelihood(W, b, x, y):
+    """
+    Calculates log likelihood for params W, b and data x,y based on 1-layer linear neural network architecture
+    :param W: array, connectivity matrix
+    :param b: vector, bias vector
+    :param x: array, data samples
+    :param y: vector, target values
+    :return: l, log likelihood
+    """
+    m = len(y)
+    k = np.max(y)
+    y_mat = np.zeros((k, m), dtype=int)
+    for i in range(m):
+        y_mat[y[i], i] = 1               # Create y_mat
 
+    b = np.tile(b, (m, 1)).transpose()
+    z = W @ x + b
+
+    s = softmax(z, axis=0)
+
+    l = 0
+    for i in range(m):
+        l = l + -np.log((y_mat[:, i] @ s[:, i])/np.sum(s[:, i]))
+
+    return l
 
 
 # Main Script-----------------------------------------------------------------------------------------------------------
@@ -213,5 +239,59 @@ if __name__ == "__main__":
         ax = fig.add_subplot(gs0[ix])
         ax.imshow(to_plot[i], cmap='Greys')
         ax.axis('off')
+
+    working_dir = Path.cwd()
+    fig.savefig(working_dir, format('pdf'))
+
+    d = 28**2                                               # Initialize parameters
+    k = 10
+    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k, spec_radius=1)
+    b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
+
+    x_train = data['train0']                                # Initialize training variables
+    for i in range(1, 10):
+        x_train = np.concatenate((x_train, data['train' + str(i)]), axis=0)
+    x_train = x_train.transpose()
+    y_train = []
+    for i in range(10):
+        y_train.extend(data['train' + str(i)].shape[0])
+    y_train = np.asarray(y_train)
+
+    gt_m = 16                                               # Get data for gradient test
+    gt_index = np.random.choice(y_train, size=gt_m, replace=False)
+    y_gt = y_train[gt_index]
+    x_gt = x_train[:, gt_index]
+    n_gt = len(y_gt)
+    k_gt = np.max(y_gt)
+    y_mat_gt = np.zeros((k_gt, n_gt), dtype=int)
+    for i in range(n):
+        y_mat_gt[y_gt[i], i] = 1
+
+    w1_test = (1, 1)                                        # Numerically compute partial derivatives for 3 params
+    w2_test = (3, 7)
+    b_test = 4
+    h_gt = 0.0001
+
+    W1 = np.copy(W)
+    W2 = np.copy(W)
+    b1 = np.copy(b)
+    W1[w1_test] = W1[w1_test] + h_gt
+    W2[w2_test] = W2[w2_test] + h_gt
+    b1[b_test] = b1[b_test] + h_gt
+
+    f_a = lnn_likelihood(W, b, x_gt, y_gt)
+    f_ah_w1 = lnn_likelihood(W1, b, x_gt, y_gt)
+    f_ah_w2 = lnn_likelihood(W2, b, x_gt, y_gt)
+    f_ah_b1 = lnn_likelihood(W, b1, x_gt, y_gt)
+
+    dW1 = (f_ah_w1 - f_a)/h_gt
+    dW2 = (f_ah_w2 - f_a) / h_gt
+    db1 = (f_ah_b1 - f_a) / h_gt
+
+    dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)        # Analytically compute partial derivatives
+    dW1a = dW_gt[w1_test]
+    dW2a = dW_gt[w2_test]
+    db1a = db_gt[b_test]
+
 
 
