@@ -1,8 +1,8 @@
 from pathlib import Path
 import numpy as np
-import scipy as sp
+#import scipy as sp
 import scipy.io as sio
-import keras as k
+#import keras as k
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 
@@ -22,19 +22,25 @@ def load_mnist(name):
     return data
 
 
-def init_mat(element_sd, p_connection, num_features, num_outputs):
+def init_mat(element_sd, p_connection, num_features, num_outputs, max_sv=None):
     """
-    Initializes connectivity matrix W. element_sd=1; p_connection=1; num_features=d; num_outputs=k; spec_radius=1
+    Initializes connectivity matrix W. element_sd=1; p_connection=1; num_features=d; num_outputs=k; max_sv=1
     :param element_sd: Standard deviation of each element
     :param p_connection: probability that a single element is non-zero
     :param num_features: (d) number of features (size of input layer)
     :param num_outputs: (o) number of outputs (size of output layer
+    :param max_sv: max singular value of matix
     :return: W: d x o connectivity matrix
     """
 
     W = np.random.binomial(1, p_connection, (num_outputs, num_features))
-    X = np.random.normal(0, element_sd, (num_features, num_outputs))
+    X = np.random.normal(0, element_sd, (num_outputs, num_features))
     W = W * X
+
+    if max_sv:
+        _, sigma, _ = np.linalg.svd(W)
+        sigma = np.max(sigma)
+        W = max_sv*W/sigma
 
     return W
 
@@ -225,7 +231,7 @@ def lnn_likelihood(W, b, k, x, y):
 if __name__ == "__main__":
 
     save_plots = False                                      # Choose whether or not to save plots
-    test_gradient = False                                   # Choose whether or not to test gradient
+    test_gradient = True                                   # Choose whether or not to test gradient
     plot_in = Path.cwd() / 'plots'
 
     data = load_mnist('mnist_all.mat')                      # Load
@@ -254,7 +260,7 @@ if __name__ == "__main__":
     k = 10
     epochs = 60
     n_batch = 16
-    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k)
+    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k, max_sv=0.1)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
 
     x_train = data['train0']                                # Initialize training variables
@@ -263,31 +269,38 @@ if __name__ == "__main__":
     x_train = x_train.transpose()
     y_train = []
     for i in range(10):
-        y_train.extend(data['train' + str(i)].shape[0])
+        y_train.extend(np.ones(data['train' + str(i)].shape[0], dtype=int)*i)
     y_train = np.asarray(y_train)
+    n = len(y_train)
 
     if test_gradient:
 
         gt_m = 16                                           # Get data for gradient test
-        gt_index = np.random.choice(y_train, size=gt_m, replace=False)
-        y_gt = y_train[gt_index]
-        x_gt = x_train[:, gt_index]
-        n_gt = len(y_gt)
+        gt_index = np.arange(n)
+        gt_samples = np.random.choice(gt_index, size=gt_m, replace=False)
+        y_gt = y_train[gt_samples]
+        x_gt = x_train[:, gt_samples]
         k_gt = np.max(y_gt)
-        y_mat_gt = np.zeros((k_gt, n_gt), dtype=int)
-        for i in range(n):
+        y_mat_gt = np.zeros((k, gt_m), dtype=int)
+        for i in range(gt_m):
             y_mat_gt[y_gt[i], i] = 1
 
-        w1_test = (1, 1)                                    # Analytically compute negative partial derivatives
-        w2_test = (3, 7)
+        dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)     # Analytically compute negative partial derivatives
+        test_points_gt = np.where(dW_gt != 0)
+        l_gt = len(test_points_gt[0])
+        index_gt = np.arange(l_gt)
+        samples_gt = np.random.choice(index_gt, 2, replace=False)
+        ix_w1 = (test_points_gt[0][samples_gt[0]], test_points_gt[1][samples_gt[0]])
+        ix_w2 = (test_points_gt[0][samples_gt[1]], test_points_gt[1][samples_gt[1]])
+        w1_test = (ix_w1)
+        w2_test = (ix_w2)
         b_test = 4
 
-        dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)
         dW1a = dW_gt[w1_test]
         dW2a = dW_gt[w2_test]
         db1a = db_gt[b_test]
 
-        h_gt = np.array([0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001])
+        h_gt = np.array([0.9, 0.5, 0.4, 0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001])
         lh = len(h_gt)                                      # Numerically compute neg. partial derivatives for 3 params
         diff_W1 = np.zeros(lh)
         diff_W2 = np.zeros(lh)
@@ -300,10 +313,10 @@ if __name__ == "__main__":
             W2[w2_test] = W2[w2_test] + h
             b1[b_test] = b1[b_test] + h
 
-            f_a = lnn_likelihood(W, b, x_gt, y_gt)
-            f_ah_w1 = lnn_likelihood(W1, b, x_gt, y_gt)
-            f_ah_w2 = lnn_likelihood(W2, b, x_gt, y_gt)
-            f_ah_b1 = lnn_likelihood(W, b1, x_gt, y_gt)
+            f_a = lnn_likelihood(W, b, k, x_gt, y_gt)
+            f_ah_w1 = lnn_likelihood(W1, b, k, x_gt, y_gt)
+            f_ah_w2 = lnn_likelihood(W2, b, k, x_gt, y_gt)
+            f_ah_b1 = lnn_likelihood(W, b1, k, x_gt, y_gt)
 
             dW1 = - (f_ah_w1 - f_a) / h
             dW2 = - (f_ah_w2 - f_a) / h
@@ -315,9 +328,9 @@ if __name__ == "__main__":
 
         fig2 = plt.figure(2)                                # Plot results of gradient test
         fig2.suptitle('Difference Between Analytical and Numerical Partial Derivatives')
-        plt.plot(diff_W1, color='blue')
-        plt.plot(diff_W2, color='red')
-        plt.plot(diff_b, color='green')
+        plt.plot(np.log(diff_W1), color='blue', ls='--')
+        plt.plot(np.log(diff_W2), color='red', ls=':')
+        plt.plot(np.log(diff_b), color='green')
 
         if save_plots:
             fig2.savefig(plot_in, format('pdf'))
