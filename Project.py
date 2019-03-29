@@ -22,31 +22,26 @@ def load_mnist(name):
     return data
 
 
-def init_mat(element_sd, p_connection, num_features, num_outputs, spec_radius=None):
+def init_mat(element_sd, p_connection, num_features, num_outputs):
     """
-    Initializes connectivity matrix W
+    Initializes connectivity matrix W. element_sd=1; p_connection=1; num_features=d; num_outputs=k; spec_radius=1
     :param element_sd: Standard deviation of each element
     :param p_connection: probability that a single element is non-zero
     :param num_features: (d) number of features (size of input layer)
     :param num_outputs: (o) number of outputs (size of output layer
-    :param spec_radius: desired spectral radius for matrix
     :return: W: d x o connectivity matrix
     """
 
-    W = np.random.binomial(1, p_connection, (num_features, num_outputs))
+    W = np.random.binomial(1, p_connection, (num_outputs, num_features))
     X = np.random.normal(0, element_sd, (num_features, num_outputs))
     W = W * X
-
-    if spec_radius:
-        rho = np.max(np.linalg.eigvals(W))
-        W = spec_radius*W/rho
 
     return W
 
 
 def init_bias(num_outputs, element_mean=None, element_sd=None):
     """
-    Initializes bias vector b
+    Initializes bias vector b. num_outputs=k; element_mean=0.001; element_sd=0
     :param num_outputs: (o) size of bias vector
     :param element_mean: mean of elements. If None mean is zero
     :param element_sd: sd of elements. If None vector is constant. If both params are None then zero vector returned
@@ -83,7 +78,6 @@ def softmax(z, axis=0):
         if axis == 1:
             for i in range(z.shape[0]):
                 s[i, :] = np.exp(z[i, :])/np.sum(np.exp(z[i, :]))
-
 
     return s
 
@@ -145,19 +139,19 @@ class linear_nn:
         """
         return self.W, self.b
 
-    def train(self, x, y, batch_size, num_epochs):
+    def train(self, x, y, k, batch_size, num_epochs):
         """
         Takes in n samples of training data with d features and trains network with k output classes. If batch_size
         doesn't divide n then the last batch contains the remaining samples.
         :param x: training data. Should be d x n array
-        :param y: target values. Should be 1 x n of integers array
+        :param y: target values. Should be 1 x n of integers array of indices of output classes
+        :param k: number of output classes.
         :param batch_size: integer value
         :param num_epochs: integer value
         :return: params: tuple containing trained W and b
         """
 
         n = len(y)
-        k = np.max(y)
         y_mat = np.zeros((k, n), dtype=int)
         for i in range(n):
             y_mat[y[i], i] = 1                                                              # Create y_mat
@@ -168,9 +162,9 @@ class linear_nn:
             index = np.arange(0, n, 1)
 
             for _ in range(num_batches):                                                    # Loop through batches
-                if len(index) > len(batch_size):
+                if len(index) > batch_size:
                     samples = np.random.choice(index, size=batch_size, replace=False)
-                    index = index(np.isin(index, samples, assume_unique=True, invert=True))
+                    index = index[np.isin(index, samples, assume_unique=True, invert=True)]
                 else:
                     samples = index
 
@@ -194,22 +188,22 @@ class linear_nn:
         """
 
         p = lnn_predict(self.W, self.b, x)
-        y_hat = np.amax(p, axis=0, keepdims=True)
+        y_hat = np.argmax(p, axis=0)
 
         return y_hat, p
 
 
-def lnn_likelihood(W, b, x, y):
+def lnn_likelihood(W, b, k, x, y):
     """
-    Calculates log likelihood for params W, b and data x,y based on 1-layer linear neural network architecture
+    Calculates negative log likelihood for params W, b and data x,y based on 1-layer linear neural network architecture
     :param W: array, connectivity matrix
     :param b: vector, bias vector
+    :param k: integer, number of output classes
     :param x: array, data samples
     :param y: vector, target values
-    :return: l, log likelihood
+    :return: ll, negative log likelihood
     """
     m = len(y)
-    k = np.max(y)
     y_mat = np.zeros((k, m), dtype=int)
     for i in range(m):
         y_mat[y[i], i] = 1               # Create y_mat
@@ -219,11 +213,11 @@ def lnn_likelihood(W, b, x, y):
 
     s = softmax(z, axis=0)
 
-    l = 0
+    ll = 0
     for i in range(m):
-        l = l + -np.log((y_mat[:, i] @ s[:, i])/np.sum(s[:, i]))
+        ll = ll + -np.log((y_mat[:, i] @ s[:, i])/np.sum(s[:, i]))
 
-    return l
+    return ll
 
 
 # Main Script-----------------------------------------------------------------------------------------------------------
@@ -260,7 +254,7 @@ if __name__ == "__main__":
     k = 10
     epochs = 60
     n_batch = 16
-    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k, spec_radius=1)
+    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
 
     x_train = data['train0']                                # Initialize training variables
@@ -284,16 +278,17 @@ if __name__ == "__main__":
         for i in range(n):
             y_mat_gt[y_gt[i], i] = 1
 
-        dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)     # Analytically compute partial derivatives
+        w1_test = (1, 1)                                    # Analytically compute negative partial derivatives
+        w2_test = (3, 7)
+        b_test = 4
+
+        dW_gt, db_gt = lnn_update(W, b, x_gt, y_mat_gt)
         dW1a = dW_gt[w1_test]
         dW2a = dW_gt[w2_test]
         db1a = db_gt[b_test]
 
-        w1_test = (1, 1)                                    # Numerically compute partial derivatives for 3 params
-        w2_test = (3, 7)
-        b_test = 4
         h_gt = np.array([0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001])
-        lh = len(h_gt)
+        lh = len(h_gt)                                      # Numerically compute neg. partial derivatives for 3 params
         diff_W1 = np.zeros(lh)
         diff_W2 = np.zeros(lh)
         diff_b = np.zeros(lh)
@@ -310,9 +305,9 @@ if __name__ == "__main__":
             f_ah_w2 = lnn_likelihood(W2, b, x_gt, y_gt)
             f_ah_b1 = lnn_likelihood(W, b1, x_gt, y_gt)
 
-            dW1 = (f_ah_w1 - f_a) / h
-            dW2 = (f_ah_w2 - f_a) / h
-            db1 = (f_ah_b1 - f_a) / h
+            dW1 = - (f_ah_w1 - f_a) / h
+            dW2 = - (f_ah_w2 - f_a) / h
+            db1 = - (f_ah_b1 - f_a) / h
 
             diff_W1[ix] = np.abs(dW1a - dW1)
             diff_W2[ix] = np.abs(dW2a - dW2)
@@ -340,7 +335,7 @@ if __name__ == "__main__":
 
     error = []                                              # Train network and plot error at each epoch
     for ix in range(epochs):
-        _ = lnn.train(x_train, y_train, batch_size=n_batch, num_epochs=1)
+        _ = lnn.train(x_train, y_train, k=k, batch_size=n_batch, num_epochs=1)
         y_hat = lnn.test(x_test)
         y_hat.flatten()
 
