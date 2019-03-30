@@ -1,8 +1,11 @@
+import sys
 from pathlib import Path
+import os as os
 import numpy as np
-import scipy as sp
 import scipy.io as sio
-#import keras as k
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from keras.optimizers import SGD
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 
@@ -68,9 +71,9 @@ def softmax(z, axis=0):
     """
 
     if len(z.shape) == 1:
-        s = np.exp(z)/np.sum(np.exp(z))
-
-    if len(z.shape) == 2:
+        c = np.max(z)
+        s = np.exp(z - c)/np.sum(np.exp(z - c))
+    elif len(z.shape) == 2:
         s = np.zeros(z.shape)
 
         if axis == 0:
@@ -84,7 +87,11 @@ def softmax(z, axis=0):
 
         if axis == 1:
             for i in range(z.shape[0]):
-                s[i, :] = np.exp(z[i, :])/np.sum(np.exp(z[i, :]))
+                c = np.max(z[i, :])
+                s[i, :] = np.exp(z[i, :] - c)/np.sum(np.exp(z[i, :] - c))
+    else:
+        print('Invalid input dimension for softmax')
+        sys.exit()
 
     return s
 
@@ -106,7 +113,8 @@ def lnn_update(W, b, x, y):
     b = np.tile(b, (m, 1)).transpose()
     z = W @ x + b
 
-    s = sp.special.softmax(z, axis=0)
+    #s = sp.special.softmax(z, axis=0)
+    s = softmax(z, axis=0)
     y_s = y - s
     db = np.sum(y_s, axis=1)
     dW = y_s @ x.transpose()
@@ -127,7 +135,8 @@ def lnn_predict(W, b, x):
     m = x.shape[1]
     b = np.tile(b, (m, 1)).transpose()
 
-    p = sp.special.softmax(W @ x + b, axis=0)
+    #p = sp.special.softmax(W @ x + b, axis=0)
+    p = softmax(W @ x + b, axis=0)
 
     return p
 
@@ -233,12 +242,13 @@ def lnn_likelihood(W, b, k, x, y):
 
 if __name__ == "__main__":
 
-    save_plots = False                                      # Choose whether or not to save plots
-    test_gradient = False                                   # Choose whether or not to test gradient
-    plot_in = Path.cwd() / 'plots'
+    save_plots = True                                      # Choose whether or not to save plots
+    test_gradient = True                                   # Choose whether or not to test gradient
+    plot_in = os.getcwd() + '/plots'
 
     data = load_mnist('mnist_all.mat')                      # Load
 
+    # Setup-------------------------------------------------------------------------------------------------------------
     to_plot = []
     for key, value in data.items():                         # Rescale
         if key[0] == 't':
@@ -257,14 +267,16 @@ if __name__ == "__main__":
         ax.axis('off')
 
     if save_plots:
-        fig.savefig(plot_in, format('pdf'))
+        fig.savefig(plot_in + '/fig1', format='pdf')
 
     d = 28**2                                               # Initialize parameters
     k = 10
-    learning_rate = 0.5
-    epochs = 15
+    learning_rate = 1
+    W_sd = 1
+    W_p = 1
+    epochs = 18
     n_batch = 16
-    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k)
+    W = init_mat(element_sd=W_sd, p_connection=W_p, num_features=d, num_outputs=k)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
 
     x_train = data['train0']                                # Initialize training variables
@@ -277,6 +289,7 @@ if __name__ == "__main__":
     y_train = np.asarray(y_train)
     n = len(y_train)
 
+    # Test Gradient Descent Algo.---------------------------------------------------------------------------------------
     if test_gradient:
 
         gt_m = 16                                           # Get data for gradient test
@@ -339,10 +352,9 @@ if __name__ == "__main__":
         plt.plot(np.log(h_gt), diff_b/np.max(diff_b), color='green')
 
         if save_plots:
-            fig2.savefig(plot_in, format('pdf'))
+            fig2.savefig(plot_in + '/fig2', format('pdf'))
 
-    lnn = linear_nn(W, b)                                   # Create neural network
-
+    # Train and Test Model----------------------------------------------------------------------------------------------
     x_test = data['test0']                                  # Initialize testing variables
     for i in range(1, 10):
         x_test = np.concatenate((x_test, data['test' + str(i)]), axis=0)
@@ -352,9 +364,10 @@ if __name__ == "__main__":
         y_test.extend(np.ones(data['test' + str(i)].shape[0], dtype=int)*i)
     y_test = np.asarray(y_test)
 
-    y_hat, _ = lnn.test(x_test)                           # Train network and plot error at each epoch
+    lnn = linear_nn(W, b)                                   # Create neural network
+    y_hat, _ = lnn.test(x_test)                             # Train network and plot error at each epoch
     error = [np.sum(np.invert(y_hat == y_test))]
-    for ix in range(epochs):
+    for _ in range(epochs):
         learning_rate = learning_rate/2
         _ = lnn.train(x_train, y_train, k=k, eta=learning_rate, batch_size=n_batch, num_epochs=1)
         y_hat, _ = lnn.test(x_test)
@@ -365,8 +378,8 @@ if __name__ == "__main__":
 
     x_axis = np.arange(epochs+1)
     error = np.asarray(error)
+
     fig3 = plt.figure(3)
-    plt.figure(3)
     plt.title('Error on Test Set During Training')
     plt.xlabel('Epoch')
     plt.ylabel('Error')
@@ -374,3 +387,78 @@ if __name__ == "__main__":
 
     if save_plots:
         fig3.savefig(plot_in, format('pdf'))
+
+    fig4 = plt.figure(4)
+    plt.title('Weights to o3')
+    plot_mat = W[3, :].reshape(28, 28)
+    plt.imshow(plot_mat, cmap='plasma')
+    plt.axis('off')
+
+    if save_plots:
+        fig3.savefig(plot_in + '/fig3', format('pdf'))
+
+    # Keras-------------------------------------------------------------------------------------------------------------
+    fnn = Sequential()                                      # Create neural network
+    fnn.add(Dense(300, activation='tanh', input_dim=d))
+    fnn.add(Dropout(0.5))
+    fnn.add(Dense(k, activation='softmax'))
+
+    sgd = SGD(lr=0.1, momentum=0.3, decay=0, nesterov=True)
+    fnn.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    y_mat_train = np.zeros((k, len(y_train)), dtype=int)
+    for i in range(len(y_train)):
+        y_mat_train[y_train[i], i] = 1
+    y_mat_test = np.zeros((k, len(y_test)), dtype=int)
+    for i in range(len(y_test)):
+        y_mat_test[y_test[i], i] = 1
+
+    fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=32, epochs=20)
+    res = fnn.evaluate(x_test.transpose(), y_mat_test.transpose(), batch_size=32)
+
+    x_axis = np.arange(1, 16)
+    test_loss = res[0]
+    test_acc = res[1]
+    y_axis = np.ones(len(x_axis))
+    y_loss = y_axis*test_loss
+    y_acc = y_axis*test_acc
+
+    gs1 = gs.GridSpec(1, 2)
+    fig4 = plt.figure(4, (8, 4), tight_layout=True)
+    fig4.suptitle('Learning Curves / Training Results')
+    ax1 = fig4.add_subplot(gs1[0,0])
+    ax1.set_title('Loss')
+    ax1.set_ylabel('Loss')
+    ax1.set_xlabel('Epoch')
+    ax1.plot(x_axis, fnn.history.history['loss'], color='red')
+    ax1.plot(x_axis, y_loss, color='red', ls=':')
+
+    ax2 = fig4.add_subplot(gs1[0,1])
+    ax2.set_title('Accuracy')
+    ax2.set_ylabel('Accuracy')
+    ax2.set_xlabel('Epoch')
+    ax2.plot(x_axis, fnn.history.history['acc'], color='blue')
+    ax2.plot(x_axis, y_acc, color='blue', ls=':')
+
+    if save_plots:
+        fig4.savefig(plot_in + '/fig4', format('pdf'))
+
+    fig5 = plt.figure(5, (8, 4), tight_layout=True)
+    gs2 = gs.GridSpec(1,2)
+
+    visualize1 = fnn.layers[0].get_weights()[0][:, 99].reshape(28, 28)
+    ax1 = fig5.add_subplot(gs2[0,0])
+    ax1.set_title('Weights to Hidden Unit 100')
+    ax1.imshow(visualize1, cmap='plasma')
+    ax1.axis('off')
+
+    visualize2 = fnn.layers[0].get_weights()[0][:, 199].reshape(28, 28)
+    ax2 = fig5.add_subplot(gs2[0,1])
+    ax2.set_title('Weights to Hidden Unit 200')
+    ax2.imshow(visualize2, cmap='plasma')
+    ax2.axis('off')
+
+    if save_plots:
+        fig5.savefig(plot_in + '/fig5', format('pdf'))
+
+
