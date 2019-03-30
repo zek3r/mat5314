@@ -1,6 +1,6 @@
 from pathlib import Path
 import numpy as np
-#import scipy as sp
+import scipy as sp
 import scipy.io as sio
 #import keras as k
 import matplotlib.pyplot as plt
@@ -22,25 +22,19 @@ def load_mnist(name):
     return data
 
 
-def init_mat(element_sd, p_connection, num_features, num_outputs, max_sv=None):
+def init_mat(element_sd, p_connection, num_features, num_outputs):
     """
-    Initializes connectivity matrix W. element_sd=1; p_connection=1; num_features=d; num_outputs=k; max_sv=1
+    Initializes connectivity matrix W. element_sd=1; p_connection=1; num_features=d; num_outputs=k;
     :param element_sd: Standard deviation of each element
     :param p_connection: probability that a single element is non-zero
     :param num_features: (d) number of features (size of input layer)
     :param num_outputs: (o) number of outputs (size of output layer
-    :param max_sv: max singular value of matix
     :return: W: d x o connectivity matrix
     """
 
     W = np.random.binomial(1, p_connection, (num_outputs, num_features))
     X = np.random.normal(0, element_sd, (num_outputs, num_features))
-    W = W * X
-
-    if max_sv:
-        _, sigma, _ = np.linalg.svd(W)
-        sigma = np.max(sigma)
-        W = max_sv*W/sigma
+    W = (W * X)/np.sqrt(num_features)
 
     return W
 
@@ -78,9 +72,16 @@ def softmax(z, axis=0):
 
     if len(z.shape) == 2:
         s = np.zeros(z.shape)
+
         if axis == 0:
             for i in range(z.shape[1]):
-                s[:, i] = np.exp(z[:, i])/np.sum(np.exp(z[:, i]))
+                c = np.max(z[:, i])
+                s[:, i] = np.exp(z[:, i] - c)/np.sum(np.exp(z[:, i] - c))
+
+                if np.all(np.isnan(s[:, i])):
+                    s[:, i] = np.zeros(s[:, i].shape)
+                    s[np.argmax(z[:, i]), i] = 1.
+
         if axis == 1:
             for i in range(z.shape[0]):
                 s[i, :] = np.exp(z[i, :])/np.sum(np.exp(z[i, :]))
@@ -105,7 +106,7 @@ def lnn_update(W, b, x, y):
     b = np.tile(b, (m, 1)).transpose()
     z = W @ x + b
 
-    s = softmax(z, axis=0)
+    s = sp.special.softmax(z, axis=0)
     y_s = y - s
     db = np.sum(y_s, axis=1)
     dW = y_s @ x.transpose()
@@ -126,7 +127,7 @@ def lnn_predict(W, b, x):
     m = x.shape[1]
     b = np.tile(b, (m, 1)).transpose()
 
-    p = softmax(W @ x + b, axis=0)
+    p = sp.special.softmax(W @ x + b, axis=0)
 
     return p
 
@@ -145,13 +146,15 @@ class linear_nn:
         """
         return self.W, self.b
 
-    def train(self, x, y, k, batch_size, num_epochs):
+    def train(self, x, y, k, eta, batch_size, num_epochs):
         """
         Takes in n samples of training data with d features and trains network with k output classes. If batch_size
         doesn't divide n then the last batch contains the remaining samples.
+        x=x_train; y=y_train; k=k; batch_size=n_batch; num_epochs=1
         :param x: training data. Should be d x n array
         :param y: target values. Should be 1 x n of integers array of indices of output classes
         :param k: number of output classes.
+        :param eta: learning rate
         :param batch_size: integer value
         :param num_epochs: integer value
         :return: params: tuple containing trained W and b
@@ -178,8 +181,8 @@ class linear_nn:
                 x_batch = x[:, samples]
 
                 dW, db = lnn_update(self.W, self.b, x_batch, y_batch)
-                self.W = self.W + dW
-                self.b = self.b + db
+                self.W = self.W + eta*dW
+                self.b = self.b + eta*db
 
         params = (self.W, self.b)
 
@@ -231,7 +234,7 @@ def lnn_likelihood(W, b, k, x, y):
 if __name__ == "__main__":
 
     save_plots = False                                      # Choose whether or not to save plots
-    test_gradient = True                                   # Choose whether or not to test gradient
+    test_gradient = False                                   # Choose whether or not to test gradient
     plot_in = Path.cwd() / 'plots'
 
     data = load_mnist('mnist_all.mat')                      # Load
@@ -239,7 +242,7 @@ if __name__ == "__main__":
     to_plot = []
     for key, value in data.items():                         # Rescale
         if key[0] == 't':
-            value = value/255.0
+            data[key] = data[key]/255.0
             if key[1] == 'r':
                 to_plot.append(value[0].reshape(28, 28))
 
@@ -258,9 +261,10 @@ if __name__ == "__main__":
 
     d = 28**2                                               # Initialize parameters
     k = 10
-    epochs = 60
+    learning_rate = 0.5
+    epochs = 15
     n_batch = 16
-    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k, max_sv=0.1)
+    W = init_mat(element_sd=1, p_connection=1, num_features=d, num_outputs=k)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
 
     x_train = data['train0']                                # Initialize training variables
@@ -327,10 +331,12 @@ if __name__ == "__main__":
             diff_b[ix] = np.abs(db1a - db1)
 
         fig2 = plt.figure(2)                                # Plot results of gradient test
-        fig2.suptitle('Difference Between Analytical and Numerical Partial Derivatives')
-        plt.plot(np.log(diff_W1), color='blue', ls='--')
-        plt.plot(np.log(diff_W2), color='red', ls=':')
-        plt.plot(np.log(diff_b), color='green')
+        plt.title('Difference Between Analytical and Numerical Partial Derivatives')
+        plt.xlabel('Difference, Normalized to Max Value')
+        plt.ylabel('Log of Finite Difference in Numerical Approx.')
+        plt.plot(np.log(h_gt), diff_W1/np.max(diff_W1), color='blue', ls='--')
+        plt.plot(np.log(h_gt), diff_W2/np.max(diff_W2), color='red', ls=':')
+        plt.plot(np.log(h_gt), diff_b/np.max(diff_b), color='green')
 
         if save_plots:
             fig2.savefig(plot_in, format('pdf'))
@@ -343,15 +349,28 @@ if __name__ == "__main__":
     x_test = x_test.transpose()
     y_test = []
     for i in range(10):
-        y_test.extend(data['test' + str(i)].shape[0])
+        y_test.extend(np.ones(data['test' + str(i)].shape[0], dtype=int)*i)
     y_test = np.asarray(y_test)
 
-    error = []                                              # Train network and plot error at each epoch
+    y_hat, _ = lnn.test(x_test)                           # Train network and plot error at each epoch
+    error = [np.sum(np.invert(y_hat == y_test))]
     for ix in range(epochs):
-        _ = lnn.train(x_train, y_train, k=k, batch_size=n_batch, num_epochs=1)
-        y_hat = lnn.test(x_test)
-        y_hat.flatten()
+        learning_rate = learning_rate/2
+        _ = lnn.train(x_train, y_train, k=k, eta=learning_rate, batch_size=n_batch, num_epochs=1)
+        y_hat, _ = lnn.test(x_test)
 
-        error.extend(np.abs(y_hat - y_test))
+        error.append(np.sum(np.invert(y_hat == y_test)))
 
     W, b = lnn.params()
+
+    x_axis = np.arange(epochs+1)
+    error = np.asarray(error)
+    fig3 = plt.figure(3)
+    plt.figure(3)
+    plt.title('Error on Test Set During Training')
+    plt.xlabel('Epoch')
+    plt.ylabel('Error')
+    plt.plot(x_axis, error)
+
+    if save_plots:
+        fig3.savefig(plot_in, format('pdf'))
