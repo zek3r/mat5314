@@ -344,15 +344,16 @@ if __name__ == "__main__":
             diff_b[ix] = np.abs(db1a - db1)
 
         fig2 = plt.figure(2)                                # Plot results of gradient test
-        plt.title('Difference Between Analytical and Numerical Partial Derivatives')
-        plt.xlabel('Difference, Normalized to Max Value')
-        plt.ylabel('Log of Finite Difference in Numerical Approx.')
-        plt.plot(np.log(h_gt), diff_W1/np.max(diff_W1), color='blue', ls='--')
-        plt.plot(np.log(h_gt), diff_W2/np.max(diff_W2), color='red', ls=':')
-        plt.plot(np.log(h_gt), diff_b/np.max(diff_b), color='green')
+        ax = fig2.add_subplot(111)
+        ax.set_title('Difference Between Analytical and Numerical Partial Derivatives')
+        ax.set_ylabel('Difference')
+        ax.set_xlabel('-Log of Step (h) in Numerical Approx.')
+        ax.plot(-np.log(h_gt), diff_W1, color='blue', ls='--')
+        ax.plot(-np.log(h_gt), diff_W2, color='red', ls=':')
+        ax.plot(-np.log(h_gt), diff_b, color='green', ls='-.')
 
         if save_plots:
-            fig2.savefig(plot_in + '/fig2', format('pdf'))
+            fig2.savefig(plot_in + '/fig2', format='pdf')
 
     # Train and Test Model----------------------------------------------------------------------------------------------
     x_test = data['test0']                                  # Initialize testing variables
@@ -380,22 +381,24 @@ if __name__ == "__main__":
     error = np.asarray(error)
 
     fig3 = plt.figure(3)
-    plt.title('Error on Test Set During Training')
-    plt.xlabel('Epoch')
-    plt.ylabel('Error')
+    ax = fig3.add_subplot(111)
+    ax.set_title('Error on Test Set During Training')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Error')
     plt.plot(x_axis, error)
 
     if save_plots:
-        fig3.savefig(plot_in, format('pdf'))
+        fig3.savefig(plot_in + '/fig3', format='pdf')
 
     fig4 = plt.figure(4)
-    plt.title('Weights to o3')
+    ax = fig4.add_subplot(111)
+    ax.set_title('Weights to o3')
     plot_mat = W[3, :].reshape(28, 28)
-    plt.imshow(plot_mat, cmap='plasma')
-    plt.axis('off')
+    ax.imshow(plot_mat, cmap='plasma')
+    ax.axis('off')
 
     if save_plots:
-        fig3.savefig(plot_in + '/fig3', format('pdf'))
+        fig4.savefig(plot_in + '/fig4', format='pdf')
 
     # Keras-------------------------------------------------------------------------------------------------------------
     fnn = Sequential()                                      # Create neural network
@@ -416,7 +419,7 @@ if __name__ == "__main__":
     fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=32, epochs=20)
     res = fnn.evaluate(x_test.transpose(), y_mat_test.transpose(), batch_size=32)
 
-    x_axis = np.arange(1, 16)
+    x_axis = np.arange(1, 21)
     test_loss = res[0]
     test_acc = res[1]
     y_axis = np.ones(len(x_axis))
@@ -424,16 +427,16 @@ if __name__ == "__main__":
     y_acc = y_axis*test_acc
 
     gs1 = gs.GridSpec(1, 2)
-    fig4 = plt.figure(4, (8, 4), tight_layout=True)
-    fig4.suptitle('Learning Curves / Training Results')
-    ax1 = fig4.add_subplot(gs1[0,0])
+    fig5 = plt.figure(5, (8, 4), tight_layout=True)
+    fig5.suptitle('Learning Curves / Training Results')
+    ax1 = fig5.add_subplot(gs1[0,0])
     ax1.set_title('Loss')
     ax1.set_ylabel('Loss')
     ax1.set_xlabel('Epoch')
     ax1.plot(x_axis, fnn.history.history['loss'], color='red')
     ax1.plot(x_axis, y_loss, color='red', ls=':')
 
-    ax2 = fig4.add_subplot(gs1[0,1])
+    ax2 = fig5.add_subplot(gs1[0,1])
     ax2.set_title('Accuracy')
     ax2.set_ylabel('Accuracy')
     ax2.set_xlabel('Epoch')
@@ -441,24 +444,24 @@ if __name__ == "__main__":
     ax2.plot(x_axis, y_acc, color='blue', ls=':')
 
     if save_plots:
-        fig4.savefig(plot_in + '/fig4', format('pdf'))
+        fig5.savefig(plot_in + '/fig5', format='pdf')
 
-    fig5 = plt.figure(5, (8, 4), tight_layout=True)
+    fig6 = plt.figure(6, (8, 4), tight_layout=True)
     gs2 = gs.GridSpec(1,2)
 
     visualize1 = fnn.layers[0].get_weights()[0][:, 99].reshape(28, 28)
-    ax1 = fig5.add_subplot(gs2[0,0])
+    ax1 = fig6.add_subplot(gs2[0,0])
     ax1.set_title('Weights to Hidden Unit 100')
     ax1.imshow(visualize1, cmap='plasma')
     ax1.axis('off')
 
     visualize2 = fnn.layers[0].get_weights()[0][:, 199].reshape(28, 28)
-    ax2 = fig5.add_subplot(gs2[0,1])
+    ax2 = fig6.add_subplot(gs2[0,1])
     ax2.set_title('Weights to Hidden Unit 200')
     ax2.imshow(visualize2, cmap='plasma')
     ax2.axis('off')
 
     if save_plots:
-        fig5.savefig(plot_in + '/fig5', format('pdf'))
+        fig5.savefig(plot_in + '/fig6',  format='pdf')
 
 
