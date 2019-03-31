@@ -274,7 +274,7 @@ if __name__ == "__main__":
     learning_rate = 1
     W_sd = 1
     W_p = 1
-    epochs = 18
+    epochs = 25
     n_batch = 16
     W = init_mat(element_sd=W_sd, p_connection=W_p, num_features=d, num_outputs=k)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
@@ -366,8 +366,7 @@ if __name__ == "__main__":
     y_test = np.asarray(y_test)
 
     lnn = linear_nn(W, b)                                   # Create neural network
-    y_hat, _ = lnn.test(x_test)                             # Train network and plot error at each epoch
-    error = [np.sum(np.invert(y_hat == y_test))]
+    error = []                                              # Train network and plot error at each epoch
     for _ in range(epochs):
         learning_rate = learning_rate/2
         _ = lnn.train(x_train, y_train, k=k, eta=learning_rate, batch_size=n_batch, num_epochs=1)
@@ -377,14 +376,14 @@ if __name__ == "__main__":
 
     W, b = lnn.params()
 
-    x_axis = np.arange(epochs+1)
+    x_axis = np.arange(epochs)
     error = np.asarray(error)
 
     fig3 = plt.figure(3)
     ax = fig3.add_subplot(111)
     ax.set_title('Error on Test Set During Training')
     ax.set_xlabel('Epoch')
-    ax.set_ylabel('Error')
+    ax.set_ylabel('Number of Errors')
     plt.plot(x_axis, error)
 
     if save_plots:
@@ -401,6 +400,7 @@ if __name__ == "__main__":
         fig4.savefig(plot_in + '/fig4', format='pdf')
 
     # Keras-------------------------------------------------------------------------------------------------------------
+    k_epochs = 30
     fnn = Sequential()                                      # Create neural network
     fnn.add(Dense(300, activation='tanh', input_dim=d))
     fnn.add(Dropout(0.5))
@@ -416,10 +416,10 @@ if __name__ == "__main__":
     for i in range(len(y_test)):
         y_mat_test[y_test[i], i] = 1
 
-    fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=32, epochs=20)
+    fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=32, epochs=k_epochs)
     res = fnn.evaluate(x_test.transpose(), y_mat_test.transpose(), batch_size=32)
 
-    x_axis = np.arange(1, 21)
+    x_axis = np.arange(1, k_epochs+1)
     test_loss = res[0]
     test_acc = res[1]
     y_axis = np.ones(len(x_axis))
@@ -427,21 +427,19 @@ if __name__ == "__main__":
     y_acc = y_axis*test_acc
 
     gs1 = gs.GridSpec(1, 2)
-    fig5 = plt.figure(5, (8, 4), tight_layout=True)
-    fig5.suptitle('Learning Curves / Training Results')
+    fig5 = plt.figure(5, (8, 4))
+    fig5.suptitle('FNN Learning Curves')
     ax1 = fig5.add_subplot(gs1[0,0])
-    ax1.set_title('Loss')
     ax1.set_ylabel('Loss')
     ax1.set_xlabel('Epoch')
     ax1.plot(x_axis, fnn.history.history['loss'], color='red')
-    ax1.plot(x_axis, y_loss, color='red', ls=':')
 
     ax2 = fig5.add_subplot(gs1[0,1])
-    ax2.set_title('Accuracy')
     ax2.set_ylabel('Accuracy')
     ax2.set_xlabel('Epoch')
     ax2.plot(x_axis, fnn.history.history['acc'], color='blue')
-    ax2.plot(x_axis, y_acc, color='blue', ls=':')
+
+    gs1.tight_layout(fig5, rect=[0, 0.03, 1, 0.95])
 
     if save_plots:
         fig5.savefig(plot_in + '/fig5', format='pdf')
@@ -462,6 +460,7 @@ if __name__ == "__main__":
     ax2.axis('off')
 
     if save_plots:
-        fig5.savefig(plot_in + '/fig6',  format='pdf')
+        fig6.savefig(plot_in + '/fig6',  format='pdf')
 
-
+print('LNN Accuracy is: ' + str(1 - error[len(error) - 1]/10000) + '\n')
+print('FNN Accuracy is: ' + str(res[1]))
