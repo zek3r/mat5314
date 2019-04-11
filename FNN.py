@@ -34,8 +34,8 @@ if __name__ == "__main__":
     save_plots = True                                      # Choose whether or not to save plots
     test_gradient = True                                   # Choose whether or not to test gradient
 
-    #plot_in = os.getcwd() + '/plots'
     plot_in = '/Users/macbookair/desktop/MAT5314/tex_stuff_proj_full'
+    # plot_in = os.getcwd() + '/plots'
     data = load_mnist('mnist_all.mat')                      # Load
 
     # Set seeds and force single threading for reproducible results-----------------------------------------------------
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     res = fnn.evaluate(x_test.transpose(), y_mat_test.transpose(), batch_size=b_size)          # Test
 
     # Plot Performance--------------------------------------------------------------------------------------------------
-    x_axis = np.arange(1, k_epochs+1)
+    x_axis = np.arange(1, n_epochs+1)
     test_loss = res[0]
     test_acc = res[1]
     y_axis = np.ones(len(x_axis))
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     gs1.tight_layout(fig5, rect=[0, 0.03, 1, 0.95])
 
     if save_plots:
-        fig5.savefig(plot_in + '/fig5', format='pdf')
+        fig5.savefig(plot_in + '/fig5.pdf', format='pdf')
 
     # Plot Classified Figures-------------------------------------------------------------------------------------------
     test_images = x_test.transpose()
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ax.axis('off')
 
     if save_plots:
-        fig_eval1.savefig(plot_in + '/fig7',  format='pdf')
+        fig_eval1.savefig(plot_in + '/fig7.pdf',  format='pdf')
 
     fig_eval2 = plt.figure(8, (14, 5))
     for i, incorrect in enumerate(incorrect_indices[:10]):
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         ax.axis('off')
 
     if save_plots:
-        fig_eval2.savefig(plot_in + '/fig8',  format='pdf')
+        fig_eval2.savefig(plot_in + '/fig8.pdf',  format='pdf')
 
     # Weight Visualization----------------------------------------------------------------------------------------------
     fig6 = plt.figure(6, (8, 4), tight_layout=True)
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     ax2.axis('off')
 
     if save_plots:
-        fig6.savefig(plot_in + '/fig6',  format='pdf')
+        fig6.savefig(plot_in + '/fig6.pdf',  format='pdf')
 
 print('FNN Accuracy is: ' + str(res[1]))
 
