@@ -1,4 +1,5 @@
 import sys
+import os
 import numpy as np
 import scipy.io as sio
 import matplotlib.pyplot as plt
@@ -131,103 +132,110 @@ def cross_validate(Xtrain, Xtest, Ytrain, Ytest, kernel):
 
 
 # Main Script ----------------------------------------------------------------------------------------------------------
+if __name__ == "__main__":
+    save_plots = True
+    plot_in = os.getcwd() + '/plots/HW2'
 
-data = sio.loadmat('2Moons-2.mat')
-Xtrain = data.get('x')
-Xtest = data.get('xt')
-Ytrain = data.get('y')
-Ytest = data.get('yt')
+    data = sio.loadmat('2Moons-2.mat')
+    Xtrain = data.get('x')
+    Xtest = data.get('xt')
+    Ytrain = data.get('y')
+    Ytest = data.get('yt')
 
-# Evaluate Linear model
-kernel = 'linear'
-w_l, Y_pred_l, sse_l, gammas_l, test_sse_l = cross_validate(Xtrain, Xtest, Ytrain, Ytest, kernel)
+    # Evaluate Linear model
+    kernel = 'linear'
+    w_l, Y_pred_l, sse_l, gammas_l, test_sse_l = cross_validate(Xtrain, Xtest, Ytrain, Ytest, kernel)
 
-best_model_index_l = np.argmin(sse_l)
-best_gamma_l = gammas_l[best_model_index_l]
-model_error_l = np.min(sse_l)
+    best_model_index_l = np.argmin(sse_l)
+    best_gamma_l = gammas_l[best_model_index_l]
+    model_error_l = np.min(sse_l)
 
-# Evaluate polynomial model
-params = [3, 5, 8]
-w_p = list(np.zeros(3))
-Y_pred_p = list(np.zeros(3))
-sse_p = list(np.zeros(3))
-gammas_p = list(np.zeros(3))
-best_model_index_p = list(np.zeros(3))
-best_gamma_p = list(np.zeros(3))
-model_error_p = list(np.zeros(3))
-test_sse_p = list(np.zeros(3))
+    # Evaluate polynomial model
+    params = [3, 5, 8]
+    w_p = list(np.zeros(3))
+    Y_pred_p = list(np.zeros(3))
+    sse_p = list(np.zeros(3))
+    gammas_p = list(np.zeros(3))
+    best_model_index_p = list(np.zeros(3))
+    best_gamma_p = list(np.zeros(3))
+    model_error_p = list(np.zeros(3))
+    test_sse_p = list(np.zeros(3))
 
-for i, l in enumerate(params):
-    w_p[i], Y_pred_p[i], sse_p[i], gammas_p[i], test_sse_p[i] = \
-        cross_validate(Xtrain, Xtest, Ytrain, Ytest, kernel=('polynomial', params[i]))
+    for i, l in enumerate(params):
+        w_p[i], Y_pred_p[i], sse_p[i], gammas_p[i], test_sse_p[i] = \
+            cross_validate(Xtrain, Xtest, Ytrain, Ytest, kernel=('polynomial', params[i]))
 
-    best_model_index_p[i] = np.argmin(sse_p[i])
-    best_gamma_p[i] = gammas_p[i][best_model_index_p[i]]
-    model_error_p[i] = np.min(sse_p[i])
+        best_model_index_p[i] = np.argmin(sse_p[i])
+        best_gamma_p[i] = gammas_p[i][best_model_index_p[i]]
+        model_error_p[i] = np.min(sse_p[i])
 
-# Display results and plot
-print('Error for linear model with gamma '+str(best_gamma_l)+' is: '+str(model_error_l))
-for i in range(len(params)):
-    print('Error for order '+str(params[i])+' polynomial model with gamma '+str(best_gamma_p[i])+' is: '+str(model_error_p[i]))
+    # Display results and plot
+    print('Error for linear model with gamma '+str(best_gamma_l)+' is: '+str(model_error_l))
+    for i in range(len(params)):
+        print('Error for order '+str(params[i])+' polynomial model with gamma '+str(best_gamma_p[i])+' is: '+str(model_error_p[i]))
 
-# Plot data
-plt.figure(1)
-Xtotal = np.concatenate((Xtest, Xtrain), axis=0)
-Ytotal = np.concatenate((Ytest, Ytrain), axis=0)
-plt.title('All Data')
-plt.scatter(Xtotal[(Ytotal == -1).reshape(400,), 0], Xtotal[(Ytotal == -1).reshape(400,), 1], color='blue')
-plt.scatter(Xtotal[(Ytotal == 1).reshape(400,), 0], Xtotal[(Ytotal == 1).reshape(400,), 1], color='red')
+    # Plot data
+    plt.figure(1)
+    Xtotal = np.concatenate((Xtest, Xtrain), axis=0)
+    Ytotal = np.concatenate((Ytest, Ytrain), axis=0)
+    plt.title('All Data')
+    plt.scatter(Xtotal[(Ytotal == -1).reshape(400,), 0], Xtotal[(Ytotal == -1).reshape(400,), 1], color='blue')
+    plt.scatter(Xtotal[(Ytotal == 1).reshape(400,), 0], Xtotal[(Ytotal == 1).reshape(400,), 1], color='red')
 
-#plt.savefig('/Users/macbookair/desktop/MAT5314/tex_stuff/fig1.pdf',format='pdf')
+    if save_plots:
+        plt.savefig(plot_in + '/HW2_fig1.pdf',format='pdf')
 
-fig = plt.figure(2, tight_layout=True)
-gs0 = gs.GridSpec(2, 2)
+    fig = plt.figure(2, tight_layout=True)
+    gs0 = gs.GridSpec(2, 2)
 
-# Plot test data for linear
-index = (Y_pred_l[best_model_index_l] == 1).reshape(200,)
-Xplus = Xtest[index, :]
-index = (Y_pred_l[best_model_index_l] == -1).reshape(200,)
-Xminus = Xtest[index, :]
-
-ax1 = fig.add_subplot(gs0[0,0])
-ax1.set_title('Linear Kernel')
-ax1.scatter(Xplus[:, 0], Xplus[:, 1], color='red')
-ax1.scatter(Xminus[:, 0], Xminus[:, 1], color='blue')
-
-# Plot test data for poly
-ind = [[0, 1], [1, 0], [1, 1]]
-titles = ['Polynomial, order='+str(params[0]), 'Polynomial, order='+str(params[1]), 'Polynomial, order='+str(params[2])]
-for i in range(len(best_model_index_p)):
-    ax2 = fig.add_subplot(gs0[ind[i][0],ind[i][1]])
-    ax2.set_title(titles[i])
-    index = (Y_pred_p[i][best_model_index_p[i]] == 1).reshape(200,)
+    # Plot test data for linear
+    index = (Y_pred_l[best_model_index_l] == 1).reshape(200,)
     Xplus = Xtest[index, :]
-    index = (Y_pred_p[i][best_model_index_p[i]] == -1).reshape(200,)
+    index = (Y_pred_l[best_model_index_l] == -1).reshape(200,)
     Xminus = Xtest[index, :]
 
-    ax2.scatter(Xplus[:, 0], Xplus[:, 1], color='red')
-    ax2.scatter(Xminus[:, 0], Xminus[:, 1], color='blue')
+    ax1 = fig.add_subplot(gs0[0,0])
+    ax1.set_title('Linear Kernel')
+    ax1.scatter(Xplus[:, 0], Xplus[:, 1], color='red')
+    ax1.scatter(Xminus[:, 0], Xminus[:, 1], color='blue')
 
-#plt.savefig('/Users/macbookair/desktop/MAT5314/tex_stuff/fig2.pdf',format='pdf')
+    # Plot test data for poly
+    ind = [[0, 1], [1, 0], [1, 1]]
+    titles = ['Polynomial, order='+str(params[0]), 'Polynomial, order='+str(params[1]), 'Polynomial, order='+str(params[2])]
+    for i in range(len(best_model_index_p)):
+        ax2 = fig.add_subplot(gs0[ind[i][0],ind[i][1]])
+        ax2.set_title(titles[i])
+        index = (Y_pred_p[i][best_model_index_p[i]] == 1).reshape(200,)
+        Xplus = Xtest[index, :]
+        index = (Y_pred_p[i][best_model_index_p[i]] == -1).reshape(200,)
+        Xminus = Xtest[index, :]
 
-# Plot error
+        ax2.scatter(Xplus[:, 0], Xplus[:, 1], color='red')
+        ax2.scatter(Xminus[:, 0], Xminus[:, 1], color='blue')
 
-plt.figure(3)
-colours = ['red', 'orange', 'green']
-plt.plot(gammas_l, sse_l, color='black')
-plt.title('Cross Validation Error as Function of Reg Param')
-for i in range(len(best_model_index_p)):
-    plt.plot(gammas_p[i], sse_p[i], color=colours[i])
+    if save_plots:
+        plt.savefig(plot_in + '/HW2_fig2.pdf',format='pdf')
 
-plt.savefig('/Users/macbookair/desktop/MAT5314/tex_stuff/fig3.pdf',format='pdf')
+    # Plot error
 
-plt.figure(4)
-plt.plot(gammas_l, test_sse_l, color='black')
-plt.title('Training Set Error as Function of Reg Param')
-for i in range(len(best_model_index_p)):
-    plt.plot(gammas_p[i], test_sse_p[i], color=colours[i])
+    plt.figure(3)
+    colours = ['red', 'orange', 'green']
+    plt.plot(gammas_l, sse_l, color='black')
+    plt.title('Cross Validation Error as Function of Reg Param')
+    for i in range(len(best_model_index_p)):
+        plt.plot(gammas_p[i], sse_p[i], color=colours[i])
 
-plt.savefig('/Users/macbookair/desktop/MAT5314/tex_stuff/fig4.pdf',format='pdf')
+    if save_plots:
+        plt.savefig(plot_in + '/HW2_fig3.pdf',format='pdf')
+
+    plt.figure(4)
+    plt.plot(gammas_l, test_sse_l, color='black')
+    plt.title('Training Set Error as Function of Reg Param')
+    for i in range(len(best_model_index_p)):
+        plt.plot(gammas_p[i], test_sse_p[i], color=colours[i])
+
+    if save_plots:
+        plt.savefig(plot_in + '/HW2_fig4.pdf',format='pdf')
 
 
 

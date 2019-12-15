@@ -31,11 +31,11 @@ def load_mnist(name):
 
 if __name__ == "__main__":
 
-    save_plots = True                                      # Choose whether or not to save plots
+    save_plots = False                                      # Choose whether or not to save plots
     test_gradient = True                                   # Choose whether or not to test gradient
 
-    plot_in = '/Users/macbookair/desktop/MAT5314/tex_stuff_proj_full'
-    # plot_in = os.getcwd() + '/plots'
+    # plot_in = '/Users/macbookair/desktop/MAT5314/tex_stuff_proj_full'
+    plot_in = os.getcwd() + '/plots/FNN'
     data = load_mnist('mnist_all.mat')                      # Load
 
     # Set seeds and force single threading for reproducible results-----------------------------------------------------
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     # Keras-------------------------------------------------------------------------------------------------------------
     d = 28**2                                               # Initialize parameters
     k = 10
-    n_epochs = 60
+    n_epochs = 10
     b_size = 50
 
     fnn = Sequential()                                      # Create neural network
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     for i in range(len(y_test)):
         y_mat_test[y_test[i], i] = 1
 
-    fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=32, epochs=n_epochs)  # Train
+    fnn.fit(x_train.transpose(), y_mat_train.transpose(), batch_size=b_size, epochs=n_epochs)  # Train
     res = fnn.evaluate(x_test.transpose(), y_mat_test.transpose(), batch_size=b_size)          # Test
 
     # Plot Performance--------------------------------------------------------------------------------------------------
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     gs1.tight_layout(fig5, rect=[0, 0.03, 1, 0.95])
 
     if save_plots:
-        fig5.savefig(plot_in + '/fig5.pdf', format='pdf')
+        fig5.savefig(plot_in + '/FNN_fig5.pdf', format='pdf')
 
     # Plot Classified Figures-------------------------------------------------------------------------------------------
     test_images = x_test.transpose()
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ax.axis('off')
 
     if save_plots:
-        fig_eval1.savefig(plot_in + '/fig7.pdf',  format='pdf')
+        fig_eval1.savefig(plot_in + '/FNN_fig7.pdf',  format='pdf')
 
     fig_eval2 = plt.figure(8, (14, 5))
     for i, incorrect in enumerate(incorrect_indices[:10]):
@@ -154,7 +154,7 @@ if __name__ == "__main__":
         ax.axis('off')
 
     if save_plots:
-        fig_eval2.savefig(plot_in + '/fig8.pdf',  format='pdf')
+        fig_eval2.savefig(plot_in + '/FNN_fig8.pdf',  format='pdf')
 
     # Weight Visualization----------------------------------------------------------------------------------------------
     fig6 = plt.figure(6, (8, 4), tight_layout=True)
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     ax2.axis('off')
 
     if save_plots:
-        fig6.savefig(plot_in + '/fig6.pdf',  format='pdf')
+        fig6.savefig(plot_in + '/FNN_fig6.pdf',  format='pdf')
 
 print('FNN Accuracy is: ' + str(res[1]))
 

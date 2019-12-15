@@ -244,7 +244,7 @@ if __name__ == "__main__":
 
     save_plots = True                                      # Choose whether or not to save plots
     test_gradient = True                                   # Choose whether or not to test gradient
-    plot_in = os.getcwd() + '/plots'
+    plot_in = os.getcwd() + '/plots/Project'
 
     data = load_mnist('mnist_all.mat')                      # Load
 
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     learning_rate = 1
     W_sd = 1
     W_p = 1
-    epochs = 25
+    epochs = 10
     n_batch = 16
     W = init_mat(element_sd=W_sd, p_connection=W_p, num_features=d, num_outputs=k)
     b = init_bias(num_outputs=k, element_mean=0.001, element_sd=0)
@@ -400,7 +400,7 @@ if __name__ == "__main__":
         fig4.savefig(plot_in + '/fig4', format='pdf')
 
     # Keras-------------------------------------------------------------------------------------------------------------
-    k_epochs = 30
+    k_epochs = 10
     fnn = Sequential()                                      # Create neural network
     fnn.add(Dense(300, activation='tanh', input_dim=d))
     fnn.add(Dropout(0.5))
